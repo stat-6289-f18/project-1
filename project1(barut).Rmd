@@ -33,21 +33,26 @@ ui <- fluidPage(
   titlePanel('ANALYSIS ON AIRLINE SAFETY'),
   sidebarLayout(
     sidebarPanel(
+    
       conditionalPanel(
         'input.dataset === "data table"',
-        # Text instructions - update reference to hardcoded sample size here
+        
+      # Text instructions - update reference to hardcoded sample size here
       HTML(paste("Enter a value between 1 and", n_total)),
+      
       # Numeric input for sample size - define min and max
       numericInput(inputId = "n",
                    label = "Sample size:",
                    value = 30,
                    min = 1, max = n_total,
                    step = 1),
+                   
       # Select filetype
       radioButtons(inputId = "filetype",
                    label = "Select filetype:",
                    choices = c("csv", "tsv"),
                    selected = "csv"),
+                   
       # Select variables to download
       checkboxGroupInput(inputId = "selected_var",
                          label = "Select variables:",
@@ -56,7 +61,8 @@ ui <- fluidPage(
       ),
       
       conditionalPanel('input.dataset === "scatterplot"',
-        # Select variable for y-axis
+      
+      # Select variable for y-axis
       selectInput(inputId = "y", 
                   label = "Y-axis:",
                   choices = c("Airline"="airline",
@@ -68,6 +74,7 @@ ui <- fluidPage(
                               "Total number of fatal accidents,2000-2014"="fatal_accidents_00_14",
                               "Total number of fatalities,2000-2014"="fatalities_00_14"), 
                   selected = "fatalities_00_14"),
+                  
       # Select variable for x-axis
       selectInput(inputId = "x", 
                   label = "X-axis:",
@@ -102,6 +109,7 @@ ui <- fluidPage(
 )
 
 server <- function(input, output){
+
   # Create data table
   output$data1 <- DT::renderDataTable({
     airline_sample <- airlinesafety %>%
@@ -111,11 +119,13 @@ server <- function(input, output){
                   options = list(pageLength = 10), 
                   rownames = FALSE)
   })
+  
   # Create reactive data frame
   airline_selected <- reactive({
     req(input$selected_var)               # ensure input$selected_var is available
     airlinesafety %>% select(input$selected_var) # select columns of airline
   })
+  
   # Download file
   output$download_data <- downloadHandler(
     filename = function() {
@@ -130,11 +140,13 @@ server <- function(input, output){
       }
     }
   )
+  
   # Create scatterplot
   output$data2 <- renderPlot({
     ggplot(data = airlinesafety, aes_string(x = input$x, y = input$y)) +geom_point(alpha = input$alpha)
   })
-   # Create text
+  
+  # Create text
   output$info <- renderText({
     avg_x <- airlinesafety %>% pull(input$x) %>% mean() %>% round(2)
     avg_y <- airlinesafety %>% pull(input$y) %>% mean() %>% round(2)
