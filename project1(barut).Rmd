@@ -1,0 +1,161 @@
+---
+title: "Project 1"
+author: "Yifei Xu"
+date: "10/31/2018"
+output: word_document
+---
+
+```{r}
+################
+#   notation   #
+################
+
+#in this project
+#this app contains 3 types of output: one scatterplot, one data table and related text.
+#this app contains 3 types of input: check box,radioButton, sidebar input.
+#I used a reactive expression.
+#I used tabpanel to organize the panels.
+#this app contains 2 different tags: br(), strong().
+
+
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(DT)
+
+#load data from github
+airlinesafety <- read.csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/master/airline-safety/airline-safety.csv"),header=TRUE,sep=",")
+
+n_total <- nrow(airlinesafety)
+all_airlines <- sort(unique(airlinesafety$airline))
+
+ui <- fluidPage(
+  titlePanel('ANALYSIS ON AIRLINE SAFETY'),
+  sidebarLayout(
+    
+    sidebarPanel(
+      
+      conditionalPanel(
+        'input.dataset === "data table"',
+        
+        #Select airline
+        selectInput(inputId = "airline",
+                  label = "Select airline to view airline safety summary:",
+                  choices = all_airlines,
+                  selected = "Xiamen Airlines",
+                  multiple = TRUE),
+        
+        # Select filetype
+        radioButtons(inputId = "filetype",
+                   label = "Select filetype:",
+                   choices = c("csv", "tsv"),
+                   selected = "csv"),
+        
+        # Select variables to download
+        checkboxGroupInput(inputId = "selected_var",
+                           label = "Select variables:",
+                           choices = names(airlinesafety),
+                           selected = c("title"))),
+      
+      conditionalPanel(
+        'input.dataset === "scatterplot"',
+        
+        # Select variable for y-axis
+        selectInput(inputId = "y", 
+                  label = "Y-axis:",
+                  choices = c("Airline"="airline",
+                              "Available seat kilometers flown every week"="avail_seat_km_per_week",
+                              "Total number of incidents,1985-1999"="incidents_85_99",
+                              "Total number of fatal accidents,1985-1999"="fatal_accidents_85_99",
+                              "Total number of fatalities,1985-1999"="fatalities_85_99",
+                              "Total number of incidents,2000-2014"="incidents_00_14",
+                              "Total number of fatal accidents,2000-2014"="fatal_accidents_00_14",
+                              "Total number of fatalities,2000-2014"="fatalities_00_14"), 
+                  selected = "fatalities_00_14"),
+        
+      # Select variable for x-axis
+      selectInput(inputId = "x", 
+                  label = "X-axis:",
+                  choices = c("Airline"="airline",
+                              "Available seat kilometers flown every week"="avail_seat_km_per_week",
+                              "Total number of incidents,1985-1999"="incidents_85_99",
+                              "Total number of fatal accidents,1985-1999"="fatal_accidents_85_99",
+                              "Total number of fatalities,1985-1999"="fatalities_85_99",
+                              "Total number of incidents,2000-2014"="incidents_00_14",
+                              "Total number of fatal accidents,2000-2014"="fatal_accidents_00_14",
+                              "Total number of fatalities,2000-2014"="fatalities_00_14"),  
+                  selected = "fatal_accidents_00_14"),
+      sliderInput(inputId = "alpha", 
+                  label = "Alpha:", 
+                  min = 0, max = 1, 
+                  value = 0.5))
+      ),
+    
+    mainPanel(
+        tabsetPanel(
+          id = 'dataset',
+          tabPanel("data table", 
+                   tags$strong("Select filetype and variables, then download and/or view the data."),
+                   br(), br(),
+                   downloadButton(outputId = "download_data", label = "Download data"),
+                   br(), br(),DT::dataTableOutput("data1")
+                   ),
+          tabPanel("scatterplot",plotOutput("data2"),
+                   verbatimTextOutput("info"))
+          ))
+  )
+)
+
+
+server <- function(input, output){
+  # Create data table
+  output$data1 <- DT::renderDataTable({
+    req(input$airline)
+    safety_from_selected_airline <- airlinesafety %>%
+      filter(airline %in% input$airline)
+    DT::datatable(data = safety_from_selected_airline, 
+                  options = list(pageLength = 10), 
+                  rownames = FALSE)
+  })
+  
+  # Create reactive data frame
+  airline_selected <- reactive({
+    req(input$selected_var)               # ensure input$selected_var is available
+    airlinesafety %>% select(input$selected_var) # select columns of airline
+  })
+  
+  # Download file
+  output$download_data <- downloadHandler(
+    filename = function() {
+      paste0("airline.", input$filetype)
+    },
+    content = function(file) { 
+      if(input$filetype == "csv"){ 
+        write_csv(airline_selected(), path = file) 
+      }
+      if(input$filetype == "tsv"){ 
+        write_tsv(airline_selected(), path = file) 
+      }
+    }
+  )
+  
+  # Create scatterplot
+  output$data2 <- renderPlot({
+    ggplot(data = airlinesafety, aes_string(x = input$x, y = input$y)) +geom_point(alpha = input$alpha)
+  })
+  
+  # Create text
+  output$info <- renderText({
+    avg_x <- airlinesafety %>% pull(input$x) %>% mean() %>% round(2)
+    avg_y <- airlinesafety %>% pull(input$y) %>% mean() %>% round(2)
+    HTML(" Average x value =", avg_x,
+         sep="\n", 
+         "Average y value =", avg_y)
+  })
+}
+
+
+# Create a Shiny app object
+shinyApp(ui = ui, server = server)
+```
