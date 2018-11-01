@@ -12,7 +12,7 @@ output: word_document
 
 #in this project
 #this app contains 3 types of output: one scatterplot, one data table and related text.
-#this app contains 3 types of input: check box, numeric input, radioButton, sidebar input.
+#this app contains 4 types of input: check box, numeric input, radioButton, sidebar input.
 #I used a reactive expression.
 #I used tabpanel to organize the panels.
 #this app contains 2 different tags: br(), strong().
