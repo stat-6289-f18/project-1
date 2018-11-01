@@ -12,7 +12,7 @@ output: word_document
 
 #in this project
 #this app contains 3 types of output: one scatterplot, one data table and related text.
-#this app contains 4 types of input: check box, numeric input, radioButton, sidebar input.
+#this app contains 3 types of input: check box, radioButton, sidebar input.
 #I used a reactive expression.
 #I used tabpanel to organize the panels.
 #this app contains 2 different tags: br(), strong().
@@ -28,27 +28,26 @@ library(DT)
 airlinesafety <- read.csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/master/airline-safety/airline-safety.csv"),header=TRUE,sep=",")
 
 n_total <- nrow(airlinesafety)
+all_airlines <- sort(unique(airlinesafety$airline))
 
 ui <- fluidPage(
   titlePanel('ANALYSIS ON AIRLINE SAFETY'),
   sidebarLayout(
+  
     sidebarPanel(
     
       conditionalPanel(
         'input.dataset === "data table"',
         
-      # Text instructions - update reference to hardcoded sample size here
-      HTML(paste("Enter a value between 1 and", n_total)),
-      
-      # Numeric input for sample size - define min and max
-      numericInput(inputId = "n",
-                   label = "Sample size:",
-                   value = 30,
-                   min = 1, max = n_total,
-                   step = 1),
-                   
-      # Select filetype
-      radioButtons(inputId = "filetype",
+        #Select airline
+        selectInput(inputId = "airline",
+                  label = "Select airline to view airline safety summary:",
+                  choices = all_airlines,
+                  selected = "Xiamen Airlines",
+                  multiple = TRUE),
+       
+       # Select filetype
+       radioButtons(inputId = "filetype",
                    label = "Select filetype:",
                    choices = c("csv", "tsv"),
                    selected = "csv"),
@@ -92,7 +91,7 @@ ui <- fluidPage(
                   min = 0, max = 1, 
                   value = 0.5))
       ),
-    
+      
     mainPanel(
         tabsetPanel(
           id = 'dataset',
@@ -112,10 +111,10 @@ server <- function(input, output){
 
   # Create data table
   output$data1 <- DT::renderDataTable({
-    airline_sample <- airlinesafety %>%
-      sample_n(input$n) %>%
-      select(airline:fatalities_00_14)
-    DT::datatable(data = airline_sample, 
+    req(input$airline)
+    safety_from_selected_airline <- airlinesafety %>%
+      filter(airline %in% input$airline)
+    DT::datatable(data = safety_from_selected_airline, 
                   options = list(pageLength = 10), 
                   rownames = FALSE)
   })
