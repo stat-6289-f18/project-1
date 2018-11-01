@@ -122,8 +122,8 @@ server <- function(input, output){
   
   # Create reactive data frame
   airline_selected <- reactive({
-    req(input$selected_var)               # ensure input$selected_var is available
-    airlinesafety %>% select(input$selected_var) # select columns of airline
+    req(input$selected_var)              # ensure input$selected_var is available
+    airlinesafety %>% select(input$selected_var)     # select columns of airline
   })
   
   # Download file
