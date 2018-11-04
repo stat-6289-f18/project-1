@@ -182,6 +182,7 @@ server <- function(input, output, session) {
     print(summary(lm(y ~ x, data = AirFrance)), digits = 3, signif.stars = FALSE)
   })
 }
+
  # Create Shiny app object
 shinyApp(ui = ui, server = server)
 ```
