@@ -4,7 +4,6 @@
 library(shiny)
 library(shinythemes)
 library(data.table)
-library(ggplot2)
 library(stringr)
 library(tidyverse)
 library(DT)
