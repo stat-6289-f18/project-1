@@ -16,6 +16,7 @@ library(dplyr)
 library(DT)
 library(tools)
 
+
 dataset<- read_csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/airline-safety/airline-safety.csv")
 
 per_capital_GDP_of_airlines_home_country <- c(34.620,24.970,25.595,25.876,22.205,21.779,34.620,26.056,25.876,21.441,35.014,12.445,25.234,34.620,4.952,26.598,25.848,34.620,34.620,31.447,15.176,25.595,4.074,34.620,7.970,19.577,24.930,35.014,3.942,3.029,6.073,38.339,1.989,0.889,21.258,29.207,9.906,2.102,34.620,3.414,0.861,10.026,0.375,0.460,8.360,3.455,1.407,1.081,2.429,0.442,1.451,0.687,13.535,0.579,0.122,1.334)
@@ -43,6 +44,9 @@ ui <- fluidPage(theme = shinytheme("united"),
                   sidebarPanel(
                     
                     h3("Plotting"),      # Third level header: Plotting
+                    
+                    
+                    
                     
                     
                     selectInput(inputId = "y", 
@@ -81,6 +85,16 @@ ui <- fluidPage(theme = shinytheme("united"),
                     textInput(inputId = "plot_title", 
                               label =  "Plot title", 
                               placeholder = "Enter text to be used as plot title"),
+                    
+                    hr(),
+                    
+                    h3("Conclusion"),
+                    
+                    hr(),
+                    
+                    actionButton("words", "Check"),
+                    hr(),
+                    textOutput("plot"),
                     
                     hr(),
                     
@@ -187,10 +201,22 @@ server <- function(input, output, session) {
               rownames = FALSE)
   })
   
+  
+  v <- reactiveValues(data = NULL)
+  
+  observeEvent(input$words, {
+    v$data <- safety[c(2:9,11:13)]
+    
+  })
+  
+  output$plot <- renderText({
+    if (is.null(v$data)) return()
+    paste("The plots shown above reveal that an airline’s track record tells you something about its probability of future crashes — although not a lot, and only if looked at in the right way. In particular, you should look toward an airline’s rate of dangerous incidents of any kind rather than its number of fatalities or fatal accidents. These near-misses are more consistent from period to period — and could result in a deadly crash the next time around. A better rule to follow is that if you’re insistent on minimizing your crash risk, you should avoid airlines from developing countries. ")
+    
+  })
+  
+  
 }
 
 
 shinyApp(ui = ui, server = server) 
-
-
-
