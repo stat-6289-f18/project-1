@@ -1,0 +1,188 @@
+---
+title: "ShinyApp project"
+author: "Mo Zhou"
+date: "11/3/2018"
+output: html_document
+---
+
+```{r}
+# Shiny App project
+# This App contains:outputs(plot,summary data table, text, html), inputs(action button, check box, sidebar input, text input), reactive # expressions, 2 tabs, and several tags(html, image).
+# Load necessery packages&dataset
+library(shiny)
+library(ggplot2)
+library(stringr)
+library(dplyr)
+library(DT)
+library(tools)
+library(shinythemes)
+library(rsconnect)
+AirFrance <- read.csv(url("https://raw.githubusercontent.com/MoZhou918/ShinyApp/master/AirFrance_forR.csv"), header=TRUE,sep=",")
+ # Define UI for application that plots features of movies
+ui <- fluidPage(
+   # Select a theme for App
+  theme = shinytheme("lumen"),
+  
+  # App title
+  titlePanel("Air France Internet Marketing", windowTitle = "Air France"),
+ 
+  # Sidebar layout with a input and output definitions
+  sidebarLayout(
+    
+    # Inputs
+    sidebarPanel(width = 3,
+      
+      wellPanel(
+        h3("Plotting"),      # Third level header: Plotting
+        
+        # Enter text for plot title
+        textInput(inputId = "plot_title", 
+                label = "Plot title", 
+                placeholder = "Enter text for the current plot"),
+      
+        # Action button for plot title
+        actionButton(inputId = "update_plot_title", 
+                   label = "Update plot title"),
+        br(),
+        br(),
+        # Select variable for y-axis 
+        selectInput(inputId = "y", 
+                    label = "Y-axis:",
+                    choices = c("Search Engine Bid" = "Search.Engine.Bid", 
+                                "Number of Clicks" = "Clicks", 
+                                "Number of Impressions" = "Impressions", 
+                                "Average Position" = "Avg..Pos.", 
+                                "Average Cost per Click" = "Avg..Cost.per.Click",
+                                "Total Volume of Bookings" = "Total.Volume.of.Bookings"), 
+                    selected = "Avg..Pos."),
+        
+        # Select variable for x-axis 
+        selectInput(inputId = "x", 
+                    label = "X-axis:",
+                    choices = c("Search Engine Bid" = "Search.Engine.Bid", 
+                                "Number of Clicks" = "Clicks", 
+                                "Number of Impressions" = "Impressions", 
+                                "Average Position" = "Avg..Pos.", 
+                                "Average Cost per Click" = "Avg..Cost.per.Click",
+                                "Total Volume of Bookings" = "Total.Volume.of.Bookings"), 
+                    selected = "Avg..Cost.per.Click"),
+      
+       # Select variable for color
+      selectInput(inputId = "z", 
+                  label = "Color by:",
+                  choices = c("Publisher Name" = "Publisher.Name", 
+                              "Match Type" = "Match.Type", 
+                              "Status" = "Status"),
+                  selected = "Publisher Name"),
+      
+      # Set alpha level
+      sliderInput(inputId = "alpha", 
+                  label = "Alpha:", 
+                  min = 0, max = 1, 
+                  value = 0.5),
+      
+      # Set point size
+      sliderInput(inputId = "size", 
+                  label = "Size:", 
+                  min = 0, max = 3, 
+                  value = 1)
+      ),
+      
+      wellPanel(
+        # Show data table
+        checkboxInput(inputId = "show_data",
+                      label = "Show brushed-data table",
+                      value = FALSE)
+      ),
+      
+      # Built with Shiny by RStudio
+      br(), br(),
+      h5("Built with",
+         img(src = "https://www.rstudio.com/wp-content/uploads/2014/04/shiny.png", height = "30px"),
+         "by",
+         img(src = "https://www.rstudio.com/wp-content/uploads/2014/07/RStudio-Logo-Blue-Gray.png", height = "30px"),
+         ".")
+    ),
+    
+    # Output:
+    mainPanel(width = 9,
+      tabsetPanel(type = "tabs",
+      
+      # Tab 1: Plot
+      tabPanel(
+        title = "Plot",
+        h3("Scatterplot"), 
+        br(),
+        plotOutput(outputId = "scatterplot", brush = "plot_brush"),
+        br(),
+        h5(textOutput("correlation")),
+        br(),
+         # Show data table
+        DT::dataTableOutput(outputId = "AirFrancetable"),
+        br()
+        ),
+      
+      
+      # Tab 2: Summary Data Table
+      tabPanel(
+        title = "Summary Data Table",
+        br(),
+        verbatimTextOutput(outputId = "lmoutput"),
+        htmlOutput(outputId = "avgs")
+      )
+     )
+    )
+  )
+)
+ # Define server function required to create the scatterplot
+server <- function(input, output, session) {
+  
+  # Print data table if checked--reactive expression
+  output$AirFrancetable <- DT::renderDataTable(
+    if(input$show_data){
+      DT::datatable(brushedPoints(AirFrance, brush = input$plot_brush) %>% 
+      select(Publisher.Name, Match.Type, Clicks, Impressions))
+    }
+  )
+   # New plot title(checkbox--reactive expression)
+  new_plot_title <- eventReactive(
+    eventExpr = input$update_plot_title, 
+    valueExpr = { toTitleCase(input$plot_title) },
+    ignoreNULL = FALSE
+    )
+  
+  # Create scatterplot object the plotOutput function is expecting 
+  output$scatterplot <- renderPlot({
+    ggplot(data = AirFrance, aes_string(x = input$x, y = input$y, color = input$z)) +
+      geom_point(alpha = input$alpha, size = input$size) +
+      labs(title = new_plot_title())
+  })
+  
+  # Create text output stating the correlation between the two ploted 
+  output$correlation <- renderText({
+    r <- round(cor(AirFrance[, input$x], AirFrance[, input$y], use = "pairwise"), 3)
+    paste0("Correlation = ", r, " between input of X-axis and Y-axis. Note: If the relationship between the two variables is not linear, the correlation coefficient will not be meaningful.")
+  })
+  
+   # Calculate averages
+  output$avgs <- renderUI({
+    avg_x <- AirFrance %>% pull(input$x) %>% mean() %>% round(2)
+    avg_y <- AirFrance %>% pull(input$y) %>% mean() %>% round(2)
+    HTML(
+      paste("Average", input$x, "=", avg_x),
+      "<br/>",
+      paste("Average", input$y, "=", avg_y)
+    )
+  })
+  
+    # Create regression output
+  output$lmoutput <- renderPrint({
+    x <- AirFrance %>% pull(input$x)
+    y <- AirFrance %>% pull(input$y)
+    print(summary(lm(y ~ x, data = AirFrance)), digits = 3, signif.stars = FALSE)
+  })
+}
+ # Create Shiny app object
+shinyApp(ui = ui, server = server)
+```
+
