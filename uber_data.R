@@ -1,6 +1,3 @@
-install.packages("shinythemes")
-install.packages("leaflet")
-install.packages("DT")
 library(shiny)
 library(leaflet)
 library(DT)
@@ -51,9 +48,11 @@ for (t in tt_names){
   i=i+1
 }
 
+
 tolerance <- 3000 # max number to plot and perform k means clustering on
 min_cl_num <- 5 # minimum number of clusters
 max_cl_num <- 20 # maximum number of clusters
+
 ui <- fluidPage(
   theme = shinytheme("journal"),
   # App title
