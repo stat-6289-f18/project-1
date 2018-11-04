@@ -22,7 +22,7 @@ score<-read_csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/mast
 # Define UI for application that plots features of movies
 ui <- fluidPage(
   
-  theme = shinytheme("cerulean"),
+  theme = shinytheme("sandstone"),
   
   # App title
   titlePanel("Movie score", windowTitle = "Movies"),
@@ -35,6 +35,14 @@ ui <- fluidPage(
       
       h3("Plotting"),      # Third level header: Plotting
       
+      # Enter text for plot title
+      textInput(inputId = "plot_title", 
+                label = "Plot title", 
+                placeholder = "Enter text to be used as plot title"),
+      
+      actionButton(inputId = "update_plot_title", 
+                   label = "Update plot title"),
+      
       # Select variable for y-axis 
       selectInput(inputId = "y", 
                   label = "Y-axis:",
@@ -42,8 +50,8 @@ ui <- fluidPage(
                               "Metacritic user score" = "Metacritic_User", 
                               "IMDb user score" = "IMDB", 
                               "Fandango Rating Value" = "Fandango_Ratingvalue", 
-                              "number of user votes the film had on IMDb" = "IMDB_user_vote_count",
-                              "number of user votes the film had on Fandango" = "Fandango_votes"), 
+                              "number of user votes on IMDb" = "IMDB_user_vote_count",
+                              "number of user votes on Fandango" = "Fandango_votes"), 
                   selected = "Metacritic_User"),
       
       # Select variable for x-axis 
@@ -53,17 +61,14 @@ ui <- fluidPage(
                               "Metacritic user score" = "Metacritic_User", 
                               "IMDb user score" = "IMDB", 
                               "Fandango Rating Value" = "Fandango_Ratingvalue", 
-                              "number of user votes the film had on IMDb" = "IMDB_user_vote_count",
-                              "number of user votes the film had on Fandango" = "Fandango_votes"), 
+                              "number of user votes on IMDb" = "IMDB_user_vote_count",
+                              "number of user votes on Fandango" = "Fandango_votes"), 
                   selected = "Fandango_votes"),
       
-      # Enter text for plot title
-      textInput(inputId = "plot_title", 
-                label = "Plot title", 
-                placeholder = "Enter text to be used as plot title"),
-      
-      actionButton(inputId = "update_plot_title", 
-                   label = "Update plot title"),
+      sliderInput(inputId = "size", 
+                  label = "Size:", 
+                  min = 0, max = 5, 
+                  value = 2),
       
       
       hr(),
@@ -101,7 +106,10 @@ ui <- fluidPage(
                   tabPanel(title = "Plot", 
                            plotOutput(outputId = "scatterplot"),
                            br(),
-                           h5(textOutput("description"))),
+                           h5(textOutput("description")),
+                           textOutput(outputId = "avg_x"), # avg of x
+                           textOutput(outputId = "avg_y"), # avg of y
+                           verbatimTextOutput(outputId = "lmoutput")), # regression output
                   tabPanel(title = "Data", 
                            br(),
                            DT::dataTableOutput(outputId = "moviestable"))
@@ -126,7 +134,7 @@ server <- function(input, output, session) {
   # Create scatterplot object the plotOutput function is expecting 
   output$scatterplot <- renderPlot({
     ggplot(data = moviestar_selected(), aes_string(x = input$x, y = input$y)) +
-      geom_point() +
+      geom_point(size = input$size) +
       labs(x = x(),
            y = y(),
            color = toTitleCase(str_replace_all(input$z, "_", " ")),
@@ -142,6 +150,26 @@ server <- function(input, output, session) {
           "for",
           nrow(moviestar_selected()),
           "movies.")
+  })
+  
+  # Calculate average of x
+  output$avg_x <- renderText({
+    avg_x <- moviestar_selected() %>% pull(input$x) %>% mean() %>% round(2)
+    paste("Average", input$x, "=", avg_x)
+  })
+  
+  # Calculate average of y
+  output$avg_y <- renderText({
+    avg_y <- moviestar_selected() %>% pull(input$y) %>% mean() %>% round(2)
+    paste("Average", input$y, "=", avg_y)
+  })
+  
+  # Create regression output
+  output$lmoutput <- renderPrint({
+    x <- moviestar_selected() %>% pull(input$x)
+    y <- moviestar_selected() %>% pull(input$y)
+    summ <- summary(lm(y ~ x, data = moviestar_selected())) 
+    print(summ, digits = 3, signif.stars = FALSE)
   })
   
   # Print data table if checked
