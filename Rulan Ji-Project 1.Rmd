@@ -1,0 +1,259 @@
+---
+title: "6289 Project One"
+author: "Rulan Ji"
+date: "2018/11/4"
+output: word_document
+---
+
+##Bad Drivers
+#Some functions of this app would be shown when it is opened in browser
+
+
+```{r}
+library(shiny)
+library(shinythemes) 
+library(tidyverse)
+library(DT) 
+library(tools) 
+```
+
+```{r message=FALSE}
+data2 <-read_csv("C:\\Users\\rulan\\Desktop\\bad-drivers.csv")
+#put the data in the same directory or change it to the address of the data
+head(data2)
+data3 <- data2 %>%
+  mutate(loss = ifelse(Losses_of_insurance_companies_per_driver <= 90, 1, Losses_of_insurance_companies_per_driver)) %>%
+  mutate(loss = ifelse(loss > 20 & loss <= 110, 2, loss)) %>%
+  mutate(loss = ifelse(loss > 20 & loss <= 130, 3, loss)) %>%
+  mutate(loss = ifelse(loss > 20 & loss <= 150, 4, loss)) %>%
+  mutate(loss = ifelse(loss > 150, 5, loss))
+data1 <- data3 %>%
+  mutate(loss1 = ifelse(loss == 1, "under 90", NA)) %>%
+  mutate(loss1 = ifelse(loss == 2, "90-110", loss1)) %>%
+  mutate(loss1 = ifelse(loss == 3, "110-130", loss1)) %>%
+  mutate(loss1 = ifelse(loss == 4, "130-150", loss1)) %>%
+  mutate(loss1 = ifelse(loss == 5, "above 150", loss1)) %>%
+  mutate(loss1 = as.factor(loss1)) %>%
+  mutate(loss1 = fct_relevel(loss1, "under 90", "90-110", "110-130", "130-150", "above 150"))
+```
+
+```{r}
+# Define UI for application that plots features of movies
+ui <- fluidPage(
+  
+ theme = shinytheme("cerulean") ,
+ 
+    # App title 
+
+  titlePanel("Bad Drivers In States", windowTitle = "Bad Drivers"), 
+
+  
+  # Sidebar layout with a input and output definitions
+  sidebarLayout(
+    
+    # Inputs
+    sidebarPanel(
+      
+      # Select variable for y-axis
+      selectInput(inputId = "y", 
+                  label = "Y-axis:",
+                  choices = c("State",
+                 "Number_of_drivers_per_billion_miles",
+                "Percent_of_drivers_who_were_speeding",          
+                "Percent_of_drivers_who_were_alcohol",
+                 "Percent_of_drivers_who_were_not_distracted",
+                "Percent_of_drivers_who_had_no_accidents",
+                 "Car_insurance_premiums"), 
+                  selected = "State"),
+      
+      # Select variable for x-axis
+      selectInput(inputId = "x",
+                  label = "X-axis:",
+                  choices = c("State",
+               "Number_of_drivers_per_billion_miles",
+                "Percent_of_drivers_who_were_speeding",
+                "Percent_of_drivers_who_were_alcohol",
+                 "Percent_of_drivers_who_were_not_distracted",
+                "Percent_of_drivers_who_had_no_accidents",
+                 "Car_insurance_premiums"
+                 ),
+                  selected = "Car_insurance_premiums"),
+     
+      
+       # Enter text for plot title 
+
+        textInput(inputId = "plot_title",  
+                  
+                label = "Plot title",  
+                
+                placeholder = "Enter text to be used as plot title"), 
+
+        
+      actionButton(inputId = "update_plot_title",  
+                   
+                   label = "Update plot title"),
+
+        # Show data detail
+
+        checkboxInput(inputId = "show_data",
+
+                    label = "Show data",
+
+                    value = TRUE),
+      hr(), 
+
+       
+      wellPanel( 
+ 
+        h3("Download"), 
+ 
+        radioButtons(inputId = "filetype", 
+
+                     label = "Download the raw data in:", 
+
+                     choices = c("csv", "tsv"), 
+ 
+                     selected = "csv", inline = TRUE), 
+ 
+        downloadButton(outputId = "download_data", label = "Download"), 
+ 
+        hr(), 
+ 
+        radioButtons(inputId = "filetype2", 
+ 
+                     label = "Download the full plot in:", 
+ 
+                     choices = c("pdf", "png"), 
+
+                     selected = "pdf", inline = TRUE), 
+
+        downloadButton(outputId = "download_plot", label = "Download") 
+
+      ), 
+
+      
+       br(),br(), 
+
+      h5("Built by Rulan Ji"),
+      h5("Used ",
+ 
+         img(src = "https://www.rstudio.com/wp-content/uploads/2014/04/shiny.png", height = "30px"), 
+         
+         "with", 
+ 
+         img(src = "https://www.rstudio.com/wp-content/uploads/2014/07/RStudio-Logo-Blue-Gray.png", height = "30px"), 
+
+         ".") 
+
+    ), 
+
+      
+    
+    # Outputs
+    mainPanel(
+      
+      tabsetPanel(type = "tabs",
+                  id = "tabsetpanel",
+                  tabPanel(title = "Plot", 
+                           plotOutput(outputId = "scatterplot"),
+                           br(),
+                           h5(textOutput("description"))),
+                  tabPanel(title = "Data", 
+                           br(),
+                           DT::dataTableOutput(outputId = "statestable"))
+  
+                
+      
+    )
+  )
+ )
+)
+
+
+# Define server function required to create the scatterplot
+server <- function(input, output, session) {
+  
+  new_plot_title <- eventReactive(
+    eventExpr = input$update_plot_title, 
+    valueExpr = { toTitleCase(input$plot_title) },
+    ignoreNULL = FALSE
+    )
+  
+  # x and y as reactive expressions
+  x <- reactive({ toTitleCase(str_replace_all(input$x, "_", " ")) })
+  y <- reactive({ toTitleCase(str_replace_all(input$y, "_", " ")) })
+  
+  # Create scatterplot object the plotOutput function is expecting 
+  plot1 <- reactive({
+    ggplot(data = data1, aes_string(x = input$x, y = input$y, color = "loss1")) +
+      geom_point() +
+      labs(x = x(),
+           y = y(),
+           color = toTitleCase(str_replace_all(input$z, "_", " ")),
+           title = toTitleCase(new_plot_title())) +
+      scale_color_manual(values=c(1:5),
+                    name="Loss per driver")
+  })
+  output$scatterplot <- renderPlot({
+    plot1()
+  })
+  
+  # Create description of plot
+  output$description <- renderText({
+    paste("The plot above shows the relationship between",
+          x(),
+          "and",
+          y(),
+          "for",
+          nrow(data1),
+          "State")
+  })
+  
+  # Print data table if checked
+  output$statestable <- DT::renderDataTable(
+    DT::datatable(data = data1[,1:8], 
+                  options = list(pageLength = 10), 
+                  rownames = FALSE)
+  )
+  
+  # Display data table tab only if show_data is checked
+  observeEvent(input$show_data, {
+    if(input$show_data){
+      showTab(inputId = "tabsetpanel", target = "Data", select = TRUE)
+    } else {
+      hideTab(inputId = "tabsetpanel", target = "Data")
+    }
+  })
+  
+    output$download_data <- downloadHandler(
+    filename = function() {
+      paste0("bad_drivers.", input$filetype)
+    },
+    content = function(file) { 
+      if(input$filetype == "csv"){ 
+        write_csv(data1, path = file) 
+      }
+      if(input$filetype == "tsv"){ 
+        write_tsv(data1, path = file) 
+      }
+    }
+  )
+  
+  output$download_plot <- downloadHandler(
+    filename = function() {
+      paste0("plot.", input$filetype2)
+    },
+    content = function(file) {
+      ggsave(file, plot = plot1(), device = input$filetype2, width = 10, height = 8)
+    }
+  )
+  
+  
+}
+
+
+
+# Create a Shiny app object
+shinyApp(ui = ui, server = server)
+```
+
