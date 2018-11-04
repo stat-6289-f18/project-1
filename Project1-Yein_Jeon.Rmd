@@ -1,0 +1,141 @@
+---
+title: "Untitled"
+author: "Ye In Jeon"
+date: "November 1, 2018"
+output: html_document
+---
+
+
+```{r summary_datatable}
+#install.packages("rsconnect")
+library(rsconnect)
+library(shiny)
+
+usb2003 <- read.csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/master/births/US_births_1994-2003_CDC_NCHS.csv"))
+usb2014 <- read.csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/master/births/US_births_2000-2014_SSA.csv"))
+
+# UI
+ui <- fluidPage(
+
+  # Title
+  titlePanel("Birth Categorization"),
+  tags$h5("Click the button below to go to the link of dataset describtion page of github"),
+  tags$a(href="https://github.com/fivethirtyeight/data/tree/master/births", "Click Here!"),
+  
+  hr(),
+
+  # Sidebar layout 
+  sidebarLayout(
+
+    # Sidebar panel
+    sidebarPanel(
+
+      # Choosing dataset
+      radioButtons(inputId = "dataset",
+                  label = "Choose a dataset to start",
+                  choices = list("US_births_2000-2014", "US_births_1994-2003"), selected = NULL, inline = FALSE),
+
+      # The number of obs to view
+      numericInput(inputId = "obs",
+                   label = "Number of observations to view:",
+                   value = 5),
+      
+      # Radio box for month
+      checkboxGroupInput("Choose Month to start", inputId = "month",
+                              choices = list( "Jan" = 1, "Feb"= 2, "Mar"= 3, "Apr"= 4, "May"= 5, "Jun"= 6, "Jul"= 7, "Aug"= 8, 
+                                              "Sep"= 9, "Oct"= 10, "Nov"= 11, "Dec"= 12), selected=1),
+      # Check box for days
+      checkboxGroupInput("Choose Day to plot", inputId = "day",
+                              choices = list("Monday" = 1, "Tuesday" = 2, "Wednesday" = 3,"Thursday"= 4, "Friday"= 5, "Saturaday"= 6,
+                                             "Sunday"= 7), selected=1)
+      
+
+ 
+    ),
+
+    # Main panel
+    mainPanel(
+       tabsetPanel(
+         
+           tabPanel("Summary&Data_View",
+                    tags$h5("In this tab, you can see the summary and rows of the dataset you chose"),
+                    hr(),
+             # Output summary
+              verbatimTextOutput("summary"),
+             # Output data set table
+              tableOutput("view")),
+           
+           tabPanel("Month_Plot",
+                    tags$h5("In this tab, you can see the plots for the birts by month"),
+                    hr(),
+             # Output plot1
+              plotOutput("Month_Plot")),
+           
+           tabPanel("Day_plot",
+                    tags$h5("In this tab, you can see the plots for the birts by day of week"),
+                    hr(),
+              # Output plot2
+              plotOutput("Day_plot"))
+       
+      
+)
+    )
+  )
+)
+
+
+# Server
+server <- function(input, output) {
+
+  # Dataset input
+  datasetInput <- reactive({
+    switch(input$dataset,
+           "US_births_2000-2014" = usb2014,
+           "US_births_1994-2003" = usb2003)
+  })
+
+  # Output
+library("ggplot2")
+  
+  #Output : summary of overall
+  output$summary <- renderPrint({
+    dataset <- datasetInput()
+    summary(dataset)
+  })
+  
+  #Output : view of dataset with selected condition
+  output$view <- renderTable({
+    
+    data <- datasetInput()
+    data0 <- filter(data, day_of_week %in% input$day)
+    data0 <- filter(data0, month %in% input$month)
+    head(data0, n = input$obs)
+  })
+
+library(dplyr)
+  #Output : barplot with selected condition
+  output$Month_Plot <- renderPlot({
+    data <- datasetInput()
+    data1 <- filter(data, day_of_week %in% input$day)
+    data1 <- filter(data1, month %in% input$month)
+    plotdata <- aggregate(data=data1,births~month,sum) 
+    p1 <- ggplot(data=plotdata, aes(x=month, y=births)) + geom_bar(stat = "identity", color="white", fill="blue") 
+    p1
+
+})
+  
+    output$Day_plot <- renderPlot({
+    data <- datasetInput()
+    data2 <- filter(data, day_of_week %in% input$day)
+    data2 <- filter(data2, month %in% input$month)
+    plotdata2 <- aggregate(data=data2,births~day_of_week,sum) 
+    p2 <- ggplot(data=plotdata2, aes(x=day_of_week, y=births)) + geom_bar(stat = "identity", color="white", fill="green")
+    p2
+
+})
+}
+
+shinyApp(ui = ui, server = server)
+
+
+```
