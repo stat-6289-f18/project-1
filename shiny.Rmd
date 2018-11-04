@@ -1,0 +1,167 @@
+---
+title: "shiny"
+author: "Syii He"
+date: "11/3/2018"
+output: html_document
+---
+
+```{r}
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(DT)
+library(tools)
+library(shinythemes)
+hate_crime <- read.csv(file = "/Users/hesiyi/crime.csv",header=T)
+n_total <- nrow(hate_crime)
+# Define UI for application that plots features of movies
+ui <- fluidPage(theme = shinytheme("sandstone"),
+  titlePanel("Does Hate Crime have something to do with Median income?"),
+  # Sidebar layout with a input and output definitions
+  sidebarLayout(
+    
+    # Inputs
+    sidebarPanel(
+      h3("Plotting"),      # Third level header: Plotting    
+      # Select variable for y-axis
+      selectInput(inputId = "y", 
+                  label = "Y-axis:",
+                  choices = c("Hate crimes per 100,000 population" = "hate_crimes_per_100k_splc", 
+                              "Average annual hate crimes per 100,000 population, FBI" = "avg_hatecrimes_per_100k_fbi"
+                              ), 
+                  selected = "hate_crimes_per_100k_splc"),
+      
+      # Select variable for x-axis
+      selectInput(inputId = "x", 
+                  label = "X-axis:",
+                  choices = c("Meadian Household Income" = "median_household_income", 
+                              "Share of the population that is unemployed (seasonally adjusted)" = "share_unemployed_seasonal", 
+                              "Share of the population that lives in metropolitan areas" = "share_population_in_metro_areas", 
+                              "Share of adults 25 and older with a high-school degree" = "share_population_with_high_school_degree", 
+                              "Share of the population that are not U.S. citizens" = "share_non_citizen",
+                              "Share of white residents who are living in poverty" = "share_white_poverty",
+                              "Gini Index" = "gini_index",
+                              "Share of the population that is not white" = "share_non_white",
+                              "Share of 2016 U.S. presidential voters who voted for Donald Trump" = "share_voters_voted_trump"
+                              ), 
+                  selected = "median_household_income"),
+      
+      # Select variable for color
+      selectInput(inputId = "z", 
+                  label = "Color by:",
+                  choices = c("State Name"="state","Meadian Household Income" = "median_household_income","Region"="region"),
+                  selected = "region"),
+      
+      sliderInput(inputId = "alpha", 
+                  label = "Alpha:", 
+                  min = 0, max = 1, 
+                  value = 1),
+      
+       # Enter text for plot title
+      textInput(inputId = "plot_title", 
+                label = "Plot title", 
+                placeholder = "Enter text for plot title"),
+      
+       hr(),                # Horizontal line for visual separation
+      
+      h3("Subsetting"),    # Third level header: Subsetting
+      # Select which types of regions to plot
+      checkboxGroupInput(inputId = "selected_type",
+                         label = "Select region(s):",
+                         choices = c("south", "west", "midwest","northeast"),
+                         selected = "south"),
+      
+       hr(),                # Horizontal line for visual separation
+       # Show data table
+      checkboxInput(inputId = "show_data",
+                    label = "Show data table",
+                    value = TRUE),
+       # Built with Shiny by RStudio
+      br(), br(),
+      h5("Built with",
+         img(src = "https://www.rstudio.com/wp-content/uploads/2014/04/shiny.png", height = "30px"),
+         "by",
+         img(src = "https://www.rstudio.com/wp-content/uploads/2014/07/RStudio-Logo-Blue-Gray.png", height = "30px"),
+         ".")
+    ),
+    
+    
+    # Output
+      mainPanel(
+      
+      tabsetPanel(type = "tabs",
+                  id = "tabsetpanel",
+                  tabPanel(title = "Plot", 
+                           br(),
+                           plotOutput(outputId = "scatterplot")),
+                        
+                  tabPanel(title = "Data", 
+                           br(),
+                           DT::dataTableOutput(outputId = "crimestable")),
+                 tabPanel(title = "Linear Summary", 
+                           br(),
+                          textOutput(outputId = "avg_x"),
+                          textOutput(outputId = "avg_y"),
+                          textOutput(outputId = "correlation"),
+                          verbatimTextOutput(outputId = "lmoutput"))
+)
+    )
+  )
+)
+
+# Define server function required to create the scatterplot
+server <- function(input, output) {
+  
+  crimes_subset <- reactive({
+    req(input$selected_type)
+    filter(hate_crime, region %in% input$selected_type)
+  })
+    # Convert plot_title toTitleCase
+  pretty_plot_title <- reactive({ toTitleCase(input$plot_title) })
+  # x and y as reactive expressions
+  x <- reactive({ toTitleCase(str_replace_all(input$x, "_", " ")) })
+  y <- reactive({ toTitleCase(str_replace_all(input$y, "_", " ")) })
+  
+  # Create the scatterplot object the plotOutput function is expecting
+  output$scatterplot <- renderPlot({
+    ggplot(data = crimes_subset(), aes_string(x = input$x, y = input$y,
+                                     color = input$z)) +
+      geom_point(alpha = input$alpha)+
+      labs(title = pretty_plot_title())
+    
+  })
+  output$correlation <- renderText({
+    r <- round(cor(crimes_subset()[, input$x], crimes_subset()[, input$y], use = "pairwise"), 3)
+    paste0("Correlation = ", r, ". The correlation between median household income and hate crimes per 100,000 population. This shows that the hate crimes comitted is somewhat correlated with the median income.")
+  })
+  output$avg_x <- renderText({
+    avg_x <- crimes_subset() %>% pull(input$x) %>% mean() %>% round(2)
+    paste("Average", input$x, "=", avg_x)
+  })
+  
+  # Calculate average of y
+  output$avg_y <- renderText({
+    avg_y <- crimes_subset() %>% pull(input$y) %>% mean(na.rm=TRUE) %>% round(2)
+    paste("Average", input$y, "=", avg_y)
+  })
+  
+   output$lmoutput <- renderPrint({
+    x <- crimes_subset() %>% pull(input$x)
+    y <- crimes_subset() %>% pull(input$y)
+    summ <- summary(lm(y ~ x, data = hate_crime)) 
+    print(summ, digits = 3, signif.stars = TRUE)
+  })
+   # Print data table if checked
+  output$crimestable <- DT::renderDataTable(
+    if(input$show_data){
+      DT::datatable(data = crimes_subset()[, 1:6], 
+                    options = list(pageLength = 10), 
+                    rownames = FALSE)
+    }
+  )
+}
+
+# Create a Shiny app object
+shinyApp(ui = ui, server = server)
+```
+
