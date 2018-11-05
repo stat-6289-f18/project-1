@@ -1,0 +1,159 @@
+---
+title: "alcohol"
+output: html_document
+---
+```{r}
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(DT)
+dat<- read.csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/master/alcohol-consumption/drinks.csv"),header=TRUE,sep=",")
+n_total <- nrow(dat)
+all_country <- sort(unique(dat$country))
+ui <- fluidPage(
+  #App title
+  titlePanel("Alcohol Consumption", windowTitle = "alcohol-consumption"),
+  # Sidebar layout with a input and output definitions
+  sidebarLayout(
+  #input
+  sidebarPanel(
+      width = 3,
+      #condition for datatable
+      conditionalPanel(
+      'input.dataset === "datatable"',
+        
+      #select country
+      selectInput(inputId = "country",
+                label = "Select countries:",
+                choices = all_country,
+                selected = "",
+                multiple = TRUE),
+        
+      # select filetype
+      radioButtons(inputId = "filetype",
+                   label = "Select filetype:",
+                   choices = c("csv", "tsv"),
+                   selected = "csv"),
+      
+      # select variables to download
+      checkboxGroupInput(inputId = "selected_var",
+                  label = "Select variables:",
+                  choices = names(dat),
+                  selected = c("country"))
+      ),
+      #condition for plot
+      conditionalPanel(
+        'input.dataset === "scatterplot"',
+      # Select variable for y-axis
+      selectInput(inputId = "y", 
+                  label = "Y-axis:",
+                  choices = c("Country"="country",
+                              "Beer servings"="beer_servings",
+                              "Spirit servings"="spirit_servings",
+                              "Wine servings"="wine_servings",
+                              "Total litres of pure alcohol"="total_litres_of_pure_alcohol"
+                              ), 
+                  selected = "beer_servings"),
+        
+      # Select variable for x-axis
+      selectInput(inputId = "x", 
+                  label = "X-axis:",
+                  choices = c("Country"="country",
+                              "Beer servings"="beer_servings",
+                              "Spirit servings"="spirit_servings",
+                              "Wine servings"="wine_servings",
+                              "Total litres of pure alcohol"="total_litres_of_pure_alcohol"
+                              ), 
+                  selected = "beer_servings"),
+             sliderInput(inputId = "alpha", 
+                label = "Alpha:", 
+                min = 0, max = 1, 
+                value = 0.5)
+      ),
+      # condition for sample
+      conditionalPanel(
+        'input.dataset === "sample"',
+      # Text instructions
+      HTML(paste("Enter a value between 1 and", n_total)),
+      # Numeric input for sample size
+      numericInput(inputId = "n",
+                 label = "Sample size:",
+                 min=1,max=n_total,
+                 value = 30,
+                 step = 1)
+      )
+
+    ),
+  #output
+  mainPanel(
+        tabsetPanel(
+          id = 'dataset',
+          tabPanel("datatable", 
+                   tags$strong("Select filetype and variables, then download and/or view the data."),
+                   br(), br(),
+                   downloadButton(outputId = "download_data", label = "Download data"),
+                   br(), br(),DT::dataTableOutput("dat1")
+                   ),
+          tabPanel("scatterplot",plotOutput("dat2"),
+                   verbatimTextOutput(outputId = "avgs")),
+          tabPanel("sample",
+                   DT::dataTableOutput(outputId = "alcoholtable") )
+          )
+  )
+  )
+)
+server <- function(input, output){
+  # Create reactive data frame
+  countries_selected <- reactive({
+  req(input$selected_var) # ensure input$selected_var is available
+  dat%>% select(input$selected_var) # select columns of movies
+   })
+  # create datatable
+  output$dat1 <- DT::renderDataTable({
+    req(input$country)
+    alcohol_consumption <- countries_selected() %>%
+      filter(country %in% input$country)
+    DT::datatable(data = alcohol_consumption, 
+                  options = list(pageLength = 20), 
+                  rownames = FALSE)
+  })
+    # Download file
+  output$download_data <- downloadHandler(
+    filename = function() {
+      paste0("alcohol_consumption.",input$filetype)
+      },
+    content = function(file) { 
+      if(input$filetype == "csv"){ 
+        write_csv(countries_selected() %>% select(input$selected_var), path = file) 
+        }
+      if(input$filetype == "tsv"){ 
+        write_tsv(countries_selected() %>% select(input$selected_var), path = file) 
+        }
+    }
+  )
+  
+  # create scatterplot
+  output$dat2 <- renderPlot({
+    ggplot(data = dat, aes_string(x = input$x, y = input$y)) +geom_point(alpha = input$alpha)
+  })
+  # create text
+  output$avgs <- renderText({
+    avg_x <- dat %>% pull(input$x) %>% mean() %>% round(2)
+    avg_y <- dat %>% pull(input$y) %>% mean() %>% round(2)
+    HTML(" Average x value =", avg_x,
+         sep="\n", 
+         "Average y value =", avg_y)
+  })
+  # create sample
+  output$alcoholtable <- DT::renderDataTable({
+    alcohol_sample <- dat %>%
+      sample_n(input$n) 
+    DT::datatable(data = alcohol_sample, 
+                  options = list(pageLength = 20), 
+                  rownames = FALSE)
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
