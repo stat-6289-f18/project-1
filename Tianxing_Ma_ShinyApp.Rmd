@@ -1,0 +1,190 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(shiny)
+library(shinythemes)
+library(readr)
+library(ggplot2)
+library(stringr)
+library(dplyr)
+library(DT)
+library(tools)
+```
+
+```{r}
+hate_crimes = read.csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/master/hate-crimes/hate_crimes.csv"))
+```
+
+#We devide United States into 4 parts
+```{r}
+Northeast <- hate_crimes %>% 
+  subset(state %in% c("Connecticut", "Maine", "Massachusetts", "New Jersey", "New Hampshire", "New York", "Pennsylvania", "Rhode Island", "Vermont")) %>% 
+  mutate(region = "Northeast")
+```
+
+```{r}
+South <- hate_crimes %>% 
+  subset(state %in% c("Florida", "Georgia", "North Carolina", "South Carolina", "Virginia", "West Virginia", "Maryland", "Delaware", "Alabama", "Kentucky", "Mississippi", "Tennessee", "Arkansas", "Louisiana", "Oklahoma", "Texas", "District of Columbia")) %>% 
+  mutate(region = "South")
+
+```
+
+```{r}
+Midwest <- hate_crimes %>% 
+  subset(state %in% c("Illinois", "Indiana", "Iowa", "Kansas", "Michigan", "Minnesota", "Missouri", "Nebraska", "North Dakota", "Ohio", "South Dakota", "Wisconsin")) %>% 
+  mutate(region ="Midwest")
+```
+
+```{r}
+West <- hate_crimes %>% 
+  subset(state %in% c("Montana", "Wyoming", "Colorado", "New Mexico", "Idaho", "Utah", "Arizona", "Nevada", "Washington", "Oregon", "California", "Alaska", "Hawaii")) %>% 
+  mutate(region = "West")
+```
+
+```{r}
+all <- rbind(Northeast, South, Midwest, West)
+```
+
+```{r}
+# Define UI for application that plots features of movies
+ui <- fluidPage(
+  
+  # App title
+  titlePanel("Hate Crimes", windowTitle = "Hate Crimes"),
+  
+  # Sidebar layout with a input and output definitions
+  sidebarLayout(
+    
+    # Inputs
+    sidebarPanel(
+      
+      h3("Plotting"),      # Third level header: Plotting
+      
+      # Enter text for plot title
+      textInput(inputId = "plot_title", 
+                label = "Plot title", 
+                placeholder = "Enter text to be used as plot title"),
+    
+      # Select variable for x-axis 
+      selectInput(inputId = "x", 
+                  label = "Variable:",
+                  choices = c("Median household income" = "median_household_income", 
+                              "Unemployed population" = "share_unemployed_seasonal", 
+                              "Population in metropolitan areas" = "share_population_in_metro_areas", 
+                              "Adults with a high-school degree" = "share_population_with_high_school_degree", 
+                              "Non U.S. citizens population" = "share_non_citizen",
+                              "White residents living in poverty" = "share_white_poverty",
+                              "Gini Index" = "gini_index",
+                              "Voters for Donald Trump in 2016" = "share_voters_voted_trump"
+                              ), 
+                  selected = "median_household_income"),
+      
+      # Select variable for y-axis
+      radioButtons(inputId = "y", 
+                   label = "Select statistics data from which institution:", 
+                   choices = c("Southern Poverty Law Center" = "hate_crimes_per_100k_splc",
+                               "FBI" = "avg_hatecrimes_per_100k_fbi"), 
+                   selected = "hate_crimes_per_100k_splc"),
+    
+      hr(),
+      
+      h3("Subsetting"),    # Third level header: Subsetting
+      
+      # Select which types of regions to plot
+      checkboxGroupInput(inputId = "selected_type",
+                         label = "Select region(s):",
+                         choices = c("Northeast", "South", "West", "Midwest"),
+                         selected = "Northeast"),
+      
+      hr(),
+      
+      # Show data table
+      checkboxInput(inputId = "show_data",
+                    label = "Show data table",
+                    value = FALSE),
+      
+      # Built with Shiny by RStudio
+      br(), br(),
+      h5("Built by Tianxing Ma",
+         ".")
+      
+    ),
+    
+    # Output:
+    mainPanel(
+      
+      tabsetPanel(type = "tabs",
+                  id = "tabsetpanel",
+                  tabPanel(title = "Plot", 
+                           plotOutput(outputId = "scatterplot"),
+                           br(),
+                           h5(textOutput("description"))),
+                  tabPanel(title = "Data", 
+                           br(),
+                           DT::dataTableOutput(outputId = "alltable"))
+      )
+    )
+  )
+)
+```
+
+```{r}
+# Define server function required to create the scatterplot
+server <- function(input, output, session) {
+  
+  # Create a subset of data filtering for selected title types
+  all_selected <- reactive({
+    req(input$selected_type) # ensure availablity of value before proceeding
+    filter(all, region %in% input$selected_type)
+  })
+  
+  # x and y as reactive expressions
+  x <- reactive({ toTitleCase(str_replace_all(input$x, "_", " ")) })
+  y <- reactive({ toTitleCase(str_replace_all(input$y, "_", " ")) })
+  
+  # Create scatterplot object the plotOutput function is expecting 
+  output$scatterplot <- renderPlot({
+    ggplot(data = all_selected(), aes_string(x = input$x, y = input$y, color = "region")) +
+      geom_point() +
+      labs(x = x(),
+           y = y(),
+           color = toTitleCase(str_replace_all(input$z, "_", " ")),
+           title = toTitleCase(input$plot_title))
+  })
+  
+  # Create description of plot
+  output$description <- renderText({
+    paste("According to the data from",
+          y(),
+          "the plot above shows the relationship between",
+          x(),
+          "and Hate crimes per 100,000 population."
+          )
+  })
+  
+  # Print data table if checked
+  output$alltable <- DT::renderDataTable(
+    DT::datatable(data = all_selected()[, c(1,11,12,13)], 
+                  options = list(pageLength = 10), 
+                  rownames = FALSE)
+  )
+  
+  # Display data table tab only if show_data is checked
+  observeEvent(input$show_data, {
+    if(input$show_data){
+      showTab(inputId = "tabsetpanel", target = "Data", select = TRUE)
+    } else {
+      hideTab(inputId = "tabsetpanel", target = "Data")
+    }
+  })
+
+}
+```
+
+```{r}
+# Create Shiny app object
+shinyApp(ui = ui, server = server)
+```
