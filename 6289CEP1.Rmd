@@ -123,9 +123,7 @@ ui <- fluidPage(
                            verbatimTextOutput("summary")),
                   tabPanel(title = "Linear Regression Analysis", 
                            br(),
-                          textOutput(outputId = "Avg_x"),
-                          textOutput(outputId = "Avg_y"),
-                          verbatimTextOutput(outputId = "loutput"))
+                          verbatimTextOutput(outputId = "lm"))
       )
     )
   )
@@ -166,21 +164,11 @@ server <- function(input, output) {
           "polls")
   })
   
-    output$Avg_x <- renderText({
-    avg_x <- years_selected() %>% pull(input$x) %>% mean() %>% round(2)
-    paste("Average", input$x, "=", avg_x)
-  })
-  
-  output$Avg_y <- renderText({
-    avg_y <- years_selected() %>% pull(input$y) %>% mean(na.rm=TRUE) %>% round(2)
-    paste("Average", input$y, "=", avg_y)
-  })
-  
-     output$loutput <- renderPrint({
+     output$lm <- renderPrint({
     x <- years_selected() %>% pull(input$x)
     y <- years_selected() %>% pull(input$y)
     su <- summary(lm(y ~ x, data = poll)) 
-    print(su, digits = 4, signif.stars = TRUE)
+    print(su, digits = 4)
   })
   
   # Print data table if checked
