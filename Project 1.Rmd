@@ -1,0 +1,231 @@
+---
+title: "Project 1"
+author: "Hyunjae Yu"
+date: "November 5, 2018"
+output: html_notebook
+---
+
+# **STAT 6289 Project 1 - Due November 5, Monday 5 PM on GitHub**
+
+In this project you will create a Shiny app with a dataset of your own choice.
+
+You will be graded on ..the requirements that are listed in the next section. Additionally, we will award 5-10 bonus points to three projects depending on
+
+(i) aesthetics (how nice it looks),
+(ii) usability (how user friendly it is),
+(iii) the quality of the analysis (how cool the final result is or how well the main takeaway
+is presented).
+
+#### **Requirements**
+The following requirement should be met. Your plot should:
+
+1. Contain at least 3 types of output: graph, summary data table and text.
+2. Contain at least 3 types of input from the following: action button, check box, date input, date range input, numeric input, radioButton, sidebar input and text input.
+3. Use a reactive expression at least once.
+4. Use tabpanel to organize the panels.
+5. Have at least 2 different tags.
+6. Be user friendly and easy to understand.
+
+#### **Choosing a Dataset**
+You can use any dataset from the FiveThirtyEight data repo (https://github.com/fivethirtyeight/data). For a better readable version of the full dataset list see this link (https://data.fivethirtyeight.com/).
+
+#### **Submission Details**
+Create a GitHub account if you don't already have one.
+Follow the steps in https://github.com/stat-6289-f18/project-1 to submit your project.
+
+
+#### **Code**
+```{r}
+# Import Packages ----
+library(shiny)
+library(readr)
+library(ggplot2)
+library(stringr)
+library(dplyr)
+library(DT)
+library(tools)
+```
+
+```{r}
+# Import Dataset ----
+mlb <- read.csv("https://projects.fivethirtyeight.com/mlb-api/mlb_elo.csv")
+```
+
+```{r}
+mlb$date <- as.Date(mlb$date,"%Y-%m-%d")
+
+head(mlb)
+tail(mlb)
+
+team <- unique(mlb$team1)
+```
+
+```{r}
+# Define UI ----
+ui <- fluidPage(
+  
+  # Title ----
+  titlePanel("The Complete History of MLB"),
+  
+  # Sidebar Layout ----
+  sidebarLayout(
+    
+    # Sidebar Panel ----
+    sidebarPanel(
+      
+    # Select a team ----
+     wellPanel(
+       
+       h4("Filter"),
+        
+       selectizeInput(inputId = "selected_team",
+                        label = "Select a team:",
+                        choices = list("Team" = team)
+                      ),
+     
+      # Select a range of seasons ----
+      sliderInput(inputId = "season",
+                    label = "Select a season: ",
+                    min = 1871,
+                    max = 2018,
+                    value = c(1871, 2018),
+                    width = 2000
+                    )
+       
+        ), #wellPanel
+    
+    # Select a variable ----
+    wellPanel(
+    checkboxGroupInput(inputId = "variables", 
+                       label = "variables",
+                       choices = c("Season" = "season",
+                                   "Team" = "team1",
+                                   "Opponent Team" = "team2",
+                                   "ELO Rating" = "elo1_post",
+                                   "Opponent ELO Rating" = "elo2_post",
+                                   "Pitcher" = "pitcher1", 
+                                   "Opponent Pitcher" = "pitcher2",
+                                   "Rating" = "rating1_post", 
+                                   "Opponent Rating" = "rating2_post",
+                                   "Score" = "score1",
+                                   "Opponent Score" = "score2"
+                                   ),
+                       selected = c("season","team1","team2","elo1_post")
+                       ) #checkboxGroupInput
+    ), #wellPanel
+    
+    # Select variable for y-axis ----
+      wellPanel(
+        
+        radioButtons(inputId = "selected_y",
+                     label = "Y-axis:",
+                     choices = c("Score" = "score1",
+                                 "ELO Rating" = "elo1_post",
+                                 "Rating" = "rating1_post"),
+                     selected = "score1")
+     ),
+     helpText("Note: Ratings measures the team strength based on the final score, date, location, and etc., whereas the Elo rating measures the relative team strength."),
+    
+    
+    # Select a number of observations ----
+       wellPanel(
+      numericInput("obs", label = "Select a number of observations to view:", value = 5)
+      ) #wellPanel
+     
+    ), #sidebarPanel 
+    
+    
+    # Main Panel  ----
+    mainPanel(
+      
+      # Tab ----
+      tabsetPanel(type = "tabs", 
+                  id = "tabsetpanel",
+                  
+                  # Data
+                  tabPanel("Data",icon=icon("home"),
+                           br(),
+                           h4("MLB Elo"),
+                           h5("mlb_elo.csv contains game-by-game Elo ratings and forecasts back to 1871."),
+                           h5("The data contains two separate systems for rating teams; the simpler Elo ratings, used for The Complete History Of MLB, and the more involved - and confusingly named - ratings that are used in our MLB Predictions. The main difference is that Elo ratings are reverted to the mean between seasons, while the more involved ratings use preseason team projections from several projection systems and account for starting pitchers. More information can be found in this article."),
+                           br(),br(),
+                           DT::dataTableOutput(outputId = "fulltable")),      
+                  
+                  # Team Overview
+                 tabPanel("Team Overview",
+                          br(),
+                          h4("The plot below shows the selected team result over the selected period of time."),
+                          plotOutput("teamplot"), 
+                          br(), 
+                          h4("The descriptive statistics below shows the selected team result over the selected period of time."),
+                 verbatimTextOutput("teamsummary"),
+                 br(),
+                 h4("The table below shows the data pf the selected team result over the selected period of time."),
+                 DT::dataTableOutput(outputId = "teamstable"))
+                  
+      ) #tabsetPanel
+      
+    ) #mainPanel
+    
+  ) #sidebarLayout
+  
+) #fluidPage
+
+
+# Define server logic ----
+server <- function(input, output) {
+  
+  # Print data table
+    output$fulltable <- DT::renderDataTable(
+      DT::datatable(data = mlb, 
+                    options = list(pageLength = input$obs),
+                    rownames = FALSE)
+    )
+  
+    # Create a subset of data filtering for selected team
+    team_selected <- reactive({
+    req(input$selected_team) # ensure availablity of value before proceeding
+      startseason <- input$season[1]
+      endseason <- input$season[2]
+      team_input <- input$selected_team
+      
+      x_input <- mlb %>% 
+        filter(season >= startseason & season <= endseason, 
+               team %in% team_input)
+     x_input <- as.data.frame(x_input)
+     x_input
+     })
+    
+  # Create a subset of data filtering for summary
+    team_summary <- reactive({
+      team_selected() %>% select(season, elo1_post, rating1_post, score1)
+    }) 
+    
+  # Render team summary table
+  output$teamsummary <- renderPrint({
+    summary(team_summary())
+    })
+  
+  # Print team data table
+    output$teamstable <- DT::renderDataTable(
+      DT::datatable(data = team_selected() %>% select(input$variables), 
+                    options = list(pageLength = input$obs),
+                    rownames = FALSE)
+    )  
+    
+  # Create a linegraph object the plotOutput function is expecting 
+  output$teamplot <- renderPlot({
+  ggplot() + geom_line(aes(y = score1, x = season), size=1.5, data = team_selected(), color='skyblue3', stat = "identity") +
+      theme_bw()
+  })
+
+
+  
+} #function
+
+
+# Run the app ----
+shinyApp(ui = ui, server = server)
+```
+
+
