@@ -1,0 +1,236 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+library(shiny)
+library(shinythemes)
+library(readr)
+library(ggplot2)
+library(stringr)
+library(dplyr)
+library(DT)
+library(tools)
+
+data <- read_csv("https://projects.fivethirtyeight.com/soccer-api/club/spi_matches.csv")
+```
+
+```{r}
+all_team1 <- sort(unique(data$team1))
+all_team2 <- sort(unique(data$team2))
+
+min_date <- min(data$date)
+max_date <- max(data$date)
+
+n_total <- nrow(data)
+
+#movies_codebook <- read_csv("http://s3.amazonaws.com/assets.datacamp.com/production/course_4850/datasets/movies_codebook.csv")
+```
+
+```{r}
+# Define UI for application that plots features of movies
+ui <- fluidPage(theme = shinytheme("cerulean"),
+  
+  # App title
+  titlePanel("Soccer league browser, 2016 - 2018", windowTitle = "Soccer"),
+  
+  # Sidebar layout with a input and output definitions
+  sidebarLayout(
+    
+    # Inputs
+    sidebarPanel(
+      
+      h3("Plotting"), # Third level header: Plotting
+      
+      HTML(paste0("Movies released between the following dates will be plotted. 
+                  Pick dates between ", min_date, " and ", max_date, ".")),
+      
+      # Break for visual separation
+      br(), br(),
+      
+      # Date input
+      dateRangeInput(inputId = "date",
+                label = "Select dates:",
+                start = "2017-01-01", end = "2018-01-01",
+                min = min_date, max = max_date,
+                startview = "year"),
+      
+      hr(),
+      
+
+      
+      # Select variable for x-axis 
+      selectInput(inputId = "x",
+                  label = "X-axis:",
+                  choices = c("prob1","prob2","probtie","proj_score1","proj_score2","importance1","importance2",
+                              "xg1","xg2","nsxg1","nsxg2","score1","score2","adj_score1","adj_score2"),
+                  selected ="prob1"),
+      
+      # Select variable for y-axis 
+      selectInput(inputId = "y",
+                  label = "Y-axis:",
+                  choices = c("spi1","spi2"),
+                  selected = "score1"),
+      
+      selectInput(inputId = "z", 
+                  label = "Color by:",
+                  choices = c("league" = "league", 
+                              "team one" = "team1", 
+                              "team two" = "team2"),
+                  selected = "league"),
+      
+      
+      sliderInput(inputId = "size", 
+                  label = "Size:", 
+                  min = 0, max = 5, 
+                  value = 2),
+      
+      # Enter text for plot title
+      textInput(inputId = "plot_title", 
+                label = "Plot title", 
+                placeholder = "Enter text to be used as plot title"),
+      
+      hr(),
+      
+      h3("Subsetting"),    # Third level header: Subsetting
+      
+      # Select which types of movies to plot
+     checkboxGroupInput(inputId = "selected_league",
+                         label = "Select League:",
+                         choices = c(unique(data$league)),
+                         selected="French Ligue 1"),
+      
+      hr(),
+      
+      # Show data table
+      checkboxInput(inputId = "show_data",
+                    label = "Show data table",
+                    value = TRUE),
+      
+      # Built with Shiny by RStudio
+      br(), br(),
+      h5("Built with",
+         img(src = "https://www.rstudio.com/wp-content/uploads/2014/04/shiny.png", height = "30px"),
+         "by",
+         img(src = "https://www.rstudio.com/wp-content/uploads/2014/07/RStudio-Logo-Blue-Gray.png", height = "30px"),
+         ".")
+      
+    ),
+    
+    # Output:
+    mainPanel(
+      
+      tabsetPanel(type = "tabs",
+                  id = "tabsetpanel",
+                  tabPanel(title = "Plot", 
+                           plotOutput(outputId = "scatterplot"),
+                           br(),
+                           verbatimTextOutput(outputId = "lmoutput"),
+                           h5(textOutput("description"))),
+                  tabPanel(title = "Data", 
+                           br(),
+                           DT::dataTableOutput(outputId = "table"))
+                  # New tab panel for Codebook
+ #                 tabPanel("Codebook", 
+#                           br(),
+#                           dataTableOutput(outputId = "codebook"))
+      )
+    )
+  )
+)
+```
+
+
+```{r}
+# Define server function required to create the scatterplot
+server <- function(input, output, session) {
+  
+  # Create a subset of data filtering for selected title types
+  teams_selected <- reactive({
+    req(input$selected_league)
+    req(input$date)
+    
+    filter(data, league %in% input$selected_league & date >= input$date[1] & date <= input$date[2])
+  })
+  
+  # x and y as reactive expressions
+  x <- reactive({data.frame(toTitleCase(str_replace_all(input$x, "_", " "))) })
+  y <- reactive({data.frame(toTitleCase(str_replace_all(input$y, "_", " "))) })
+  
+  
+  
+  # Create scatterplot object the plotOutput function is expecting 
+  output$scatterplot <- renderPlot({
+    ggplot(data = teams_selected(), aes_string(x = input$x, y = input$y,color=input$z)) +
+      geom_point(size = input$size) +
+      geom_smooth() +
+      labs(x = x(),
+           y = y(),
+           color = toTitleCase(str_replace_all(input$z, "_", " ")),
+           title = toTitleCase(input$plot_title))
+  })
+  
+  # Create description of plot
+  output$description <- renderText({
+    r <- round(cor(data[, input$x], data[, input$y], use = "pairwise"), 3)
+    paste("The plot above shows the relationship between",
+          x(),
+          "and",
+          y(),
+          "for",
+          nrow(teams_selected()),
+          "movies. And, the correlation between two variables eqaul to ", r, ". Note: If the relationship between the two variables is not linear, the correlation coefficient will not be meaningful."
+        )
+          
+  })
+  
+  output$lmoutput <- renderPrint({
+    x <- data %>% pull(input$x)
+    y <- data %>% pull(input$y)
+    summ <- summary(lm(y ~ x, data = data)) 
+    print(summ, digits = 3, signif.stars = FALSE)
+  })
+  
+  
+  
+  
+  # Print data table if checked
+  output$table <- DT::renderDataTable({
+    DT::datatable(data = teams_selected()[, 1:ncol(data)], 
+                  options = list(pageLength = 10), 
+                  rownames = FALSE)
+  })
+  
+  # Display data table tab only if show_data is checked
+  observeEvent(input$show_data, {
+    if(input$show_data){
+      showTab(inputId = "tabsetpanel", target = "Data", select = TRUE)
+    } else {
+      hideTab(inputId = "tabsetpanel", target = "Data")
+    }
+  })
+  
+#  # Render data table for codebook
+#  output$codebook <- renderDataTable({
+#    datatable(data = movies_codebook,
+#              options = list(pageLength = 10, lengthMenu = c(10, 25, 40)), 
+#              rownames = FALSE)
+#  })
+  
+}
+```
+
+
+
+```{r}
+# Create Shiny app object
+shinyApp(ui = ui, server = server)
+```
+
+
+
+
+
