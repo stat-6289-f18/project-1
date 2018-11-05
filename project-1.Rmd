@@ -1,0 +1,183 @@
+---
+title: "Project-1"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(shiny)
+library(shinythemes)
+library(DT)
+library(tools)
+```
+
+```{r}
+data <- read.csv('all-ages.csv')
+```
+
+```{r}
+ui <- fluidPage(
+  
+  theme = shinytheme("cerulean"),
+  
+  titlePanel("College Majors", windowTitle = "Majors"),
+  
+  sidebarLayout(
+    
+    sidebarPanel(
+      
+      h3("Highest Income Majors"),
+      
+      sliderInput(inputId = "num", label = "Number of Majors Shown", value = 20,min = 1, max = 30),
+      
+      hr(),
+      
+      h3("Median Income vs Unemployment Rate"),
+      
+      # Select variable for y-axis 
+      selectInput(inputId = "y", 
+                  label = "Y-axis:",
+                  choices = c("Unemployment Rate" = "Unemployment_rate",
+                              "Median Income" = "Median_income"), 
+                  selected = "Median_income"),
+      
+      # Select variable for x-axis 
+      selectInput(inputId = "x", 
+                  label = "X-axis:",
+                  choices = c("Unemployment Rate" = "Unemployment_rate",
+                              "Median Income" = "Median_income"), 
+                  selected = "Unemployment_rate"),
+      
+      # Enter text for plot title
+      textInput(inputId = "plot_title", 
+                label = "Plot title", 
+                placeholder = "Enter text to be used as plot title"),
+      
+      hr(),
+      
+      h3("Subsetting"),    # Third level header: Subsetting
+      
+      # Select which types of movies to plot
+      checkboxGroupInput(inputId = "selected_type",
+                         label = "Select Major Categories:",
+                         choices = c("Agriculture & Natural Resources", "Arts", "Biology & Life Science",
+                                     "Business", "Computers & Mathematics","Education", "Engineering", "Health", 
+                                     "Humanities & Liberal Arts", "Industrial Arts & Consumer Services",
+                                     "Physical Sciences", "Psychology & Social Work", "Social Science"),
+                         selected = c("Business", "Arts", "Computers & Mathematics", "Engineering")),
+      
+      hr(),
+      
+      h3("Data Table"),
+      
+      # Show data table
+      checkboxInput(inputId = "show_data",
+                    label = "Show data table",
+                    value = TRUE),
+      
+      # Built with Shiny by RStudio
+      br(), br(),
+      h5("Built with",
+         img(src = "https://www.rstudio.com/wp-content/uploads/2014/04/shiny.png", height = "30px"),
+         "by",
+         img(src = "https://www.rstudio.com/wp-content/uploads/2014/07/RStudio-Logo-Blue-Gray.png", height = "30px"),
+         ".")
+      
+    ),
+    
+    # Output:
+    mainPanel(
+    
+      tabsetPanel(type = "tabs",
+                  id = "tabsetpanel",
+                  tabPanel(title = "Bar Chart",
+                           plotOutput(outputId = "barchart", height = 800)),
+                  tabPanel(title = "Scatter Plot", 
+                           plotOutput(outputId = "scatterplot", height = 500),
+                           br(),
+                           h5(textOutput("description")),
+                           verbatimTextOutput(outputId = "lmoutput")),
+                  tabPanel(title = "Data", 
+                           br(),
+                           DT::dataTableOutput(outputId = "majorstable"))
+                           
+      )
+    )
+  )
+)
+
+# Define server function required to create the scatterplot
+server <- function(input, output, session) {
+  topmajors <- reactive({
+    req(input$num)
+    data %>% 
+      arrange(desc(Median_income)) %>% 
+      top_n(input$num, Median_income)
+  })
+  
+  output$barchart <- renderPlot({
+    ggplot(topmajors(), aes(reorder(Major, Median_income), Median_income, fill = Major_category)) +
+      geom_col() + coord_flip() + ylab("Median Income") + xlab("Major")
+  })
+  
+  # Create a subset of data filtering for selected title types
+  majors_selected <- reactive({
+    req(input$selected_type) # ensure availablity of value before proceeding
+    filter(data, Major_category %in% input$selected_type)
+  })
+  
+  # x and y as reactive expressions
+  x <- reactive({ toTitleCase(str_replace_all(input$x, "_", " ")) })
+  y <- reactive({ toTitleCase(str_replace_all(input$y, "_", " ")) })
+  
+  # Create scatterplot object the plotOutput function is expecting 
+  output$scatterplot <- renderPlot({
+    ggplot(data = majors_selected(), aes_string(x = input$x, y = input$y)) +
+      geom_point(size = 4) + geom_smooth(method = "lm") +
+      labs(x = x(),
+           y = y(),
+           title = toTitleCase(input$plot_title))
+  })
+  
+  # Create description of plot
+  output$description <- renderText({
+    paste("The plot above shows the relationship between",
+          x(),
+          "and",
+          y(),
+          "for",
+          nrow(majors_selected()),
+          "majors.")
+  })
+  
+  # Create regression output
+  output$lmoutput <- renderPrint({
+    x <- data %>% pull(input$x)
+    y <- data %>% pull(input$y)
+    print(summary(lm(y ~ x, data)), digits = 3, signif.stars = FALSE)
+  })
+  
+  # Print data table if checked
+  output$majorstable <- DT::renderDataTable(
+    
+      DT::datatable(data = majors_selected()[, 2:9], 
+                    options = list(pageLength = 10), 
+                    rownames = FALSE)
+    
+  )
+  
+  # Display data table tab only if show_data is checked
+  observeEvent(input$show_data, {
+    if(input$show_data){
+      showTab(inputId = "tabsetpanel", target = "Data", select = TRUE)
+    } else {
+      hideTab(inputId = "tabsetpanel", target = "Data")
+    }
+  })
+  
+}
+
+# Create Shiny app object
+shinyApp(ui = ui, server = server)
+```
+
